@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum FilamentStatus {
+  AVAILABLE
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum TransactionType {
+  STOCK_IN
+  REQUEST_ISSUED
+  USAGE_CONSUMED
+  ADJUSTMENT
+  RETURN
+}
+
+enum NotificationType {
+  REQUEST_CREATED
+  REQUEST_ACCEPTED
+  REQUEST_REJECTED
+  LOW_STOCK
+  REQUEST_APPROVAL
+  FILAMENT_ISSUED
+  INVENTORY_CHANGE
+}
+
+model User {
+  id             String                    @id @default(cuid())
+  name           String
+  email          String                    @unique
+  passwordHash   String
+  role           UserRole                  @default(EMPLOYEE)
+  active         Boolean                   @default(true)
+  employeeCode   String?                   @unique
+  department     String?
+  phone          String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  createdFilaments Filament[]              @relation("FilamentCreatedBy")
+  managedRequests  FilamentRequest[]       @relation("RequestManager")
+  employeeRequests FilamentRequest[]       @relation("RequestEmployee")
+  usages           UsageRecord[]           @relation("UsageEmployee")
+  transactions     InventoryTransaction[]  @relation("TransactionActor")
+  employeeMoves    InventoryTransaction[]  @relation("TransactionEmployee")
+  balances         EmployeeFilamentBalance[]
+  notifications    Notification[]
+  auditLogs         AuditLog[]
+
+  @@index([role, active])
+  @@index([email])
+}
+
+model Filament {
+  id                String                    @id @default(cuid())
+  filamentId        String                    @unique
+  brand             String
+  material          String
+  color             String
+  spoolSizeKg       Decimal                   @db.Decimal(10, 3)
+  initialQuantityKg Decimal                   @db.Decimal(12, 3)
+  currentQuantityKg Decimal                   @db.Decimal(12, 3)
+  minimumStockKg    Decimal                   @db.Decimal(12, 3)
+  costPerKg         Decimal                   @db.Decimal(12, 2)
+  supplier          String?
+  purchaseDate      DateTime?
+  batchNumber       String?
+  storageLocation   String?
+  status            FilamentStatus            @default(AVAILABLE)
+  active            Boolean                   @default(true)
+  notes             String?
+  createdById       String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  createdBy         User?                     @relation("FilamentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  requests          FilamentRequest[]
+  usages            UsageRecord[]
+  transactions      InventoryTransaction[]
+  balances          EmployeeFilamentBalance[]
+
+  @@index([material, color])
+  @@index([status])
+  @@index([active])
+  @@index([batchNumber])
+}
+
+model FilamentRequest {
+  id                       String                   @id @default(cuid())
+  requestCode              String                   @unique
+  managerId                String
+  employeeId               String
+  filamentId               String
+  requestedQuantityKg      Decimal                  @db.Decimal(12, 3)
+  actualReceivedQuantityKg Decimal?                 @db.Decimal(12, 3)
+  purpose                  String
+  notes                    String?
+  status                   RequestStatus            @default(PENDING)
+  employeeRemarks          String?
+  managerRemarks           String?
+  acceptedAt               DateTime?
+  rejectedAt               DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+
+  manager                  User                     @relation("RequestManager", fields: [managerId], references: [id])
+  employee                 User                     @relation("RequestEmployee", fields: [employeeId], references: [id])
+  filament                 Filament                 @relation(fields: [filamentId], references: [id])
+  usages                   UsageRecord[]
+  transactions             InventoryTransaction[]
+
+  @@index([managerId, status])
+  @@index([employeeId, status])
+  @@index([filamentId])
+  @@index([createdAt])
+}
+
+model EmployeeFilamentBalance {
+  id         String    @id @default(cuid())
+  userId     String
+  filamentId String
+  quantityKg Decimal   @default(0) @db.Decimal(12, 3)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  filament   Filament  @relation(fields: [filamentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, filamentId])
+  @@index([filamentId])
+}
+
+model UsageRecord {
+  id                  String                   @id @default(cuid())
+  employeeId          String
+  filamentId          String
+  requestId           String?
+  projectOrderId      String
+  quantityUsedKg      Decimal                  @db.Decimal(12, 3)
+  remainingQuantityKg Decimal                  @db.Decimal(12, 3)
+  notes               String?
+  usedAt              DateTime                 @default(now())
+  createdAt           DateTime                 @default(now())
+
+  employee            User                     @relation("UsageEmployee", fields: [employeeId], references: [id])
+  filament            Filament                 @relation(fields: [filamentId], references: [id])
+  request             FilamentRequest?         @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  transactions        InventoryTransaction[]
+
+  @@index([employeeId, usedAt])
+  @@index([filamentId, usedAt])
+  @@index([projectOrderId])
+}
+
+model InventoryTransaction {
+  id                        String             @id @default(cuid())
+  type                      TransactionType
+  filamentId                String
+  requestId                 String?
+  usageRecordId             String?
+  actorId                   String?
+  employeeId                String?
+  quantityKg                Decimal            @db.Decimal(12, 3)
+  warehousePreviousQtyKg    Decimal?           @db.Decimal(12, 3)
+  warehouseNewQtyKg         Decimal?           @db.Decimal(12, 3)
+  employeePreviousBalanceKg Decimal?           @db.Decimal(12, 3)
+  employeeNewBalanceKg      Decimal?           @db.Decimal(12, 3)
+  reason                    String
+  notes                     String?
+  createdAt                 DateTime           @default(now())
+
+  filament                  Filament           @relation(fields: [filamentId], references: [id])
+  request                   FilamentRequest?   @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  usageRecord               UsageRecord?       @relation(fields: [usageRecordId], references: [id], onDelete: SetNull)
+  actor                     User?              @relation("TransactionActor", fields: [actorId], references: [id], onDelete: SetNull)
+  employee                  User?              @relation("TransactionEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([filamentId, createdAt])
+  @@index([type, createdAt])
+  @@index([employeeId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,35 @@
+{
+  "name": "filament-inventory-system",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Production-ready manual filament tracking and inventory management system for 3D printing businesses.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "start": "npm run start -w apps/api",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio --schema prisma/schema.prisma",
+    "setup": "npm install && npm run db:generate && npm run db:migrate && npm run db:seed",
+    "check": "npm run build",
+    "dev:bypass": "npm run use:local-bypass && npm run dev",
+    "setup:bypass": "npm run use:local-bypass && npm install && npm run db:generate && npm run db:migrate && npm run db:seed",
+    "use:local-bypass": "node -e \"require('fs').copyFileSync('.env.local-dev', '.env')\""
+  },
+  "dependencies": {
+    "@prisma/client": "^6.15.0",
+    "dotenv": "^17.2.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prisma": "^6.15.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

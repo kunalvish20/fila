@@ -1,0 +1,36 @@
+Local login-bypass changes made
+
+Changed files:
+- apps/api/src/config.ts
+  - Added DEV_AUTH_BYPASS and DEV_AUTH_BYPASS_EMAIL env flags.
+  - Forces DEV_AUTH_BYPASS=false when NODE_ENV=production.
+
+- apps/api/src/middleware/auth.ts
+  - When DEV_AUTH_BYPASS=true in development/test, protected APIs skip JWT verification and set req.user from DEV_AUTH_BYPASS_EMAIL.
+  - Normal JWT login remains unchanged when bypass is false.
+
+- apps/api/src/index.ts
+  - Prints a console warning when local bypass is enabled.
+
+- apps/web/src/context/AuthContext.tsx
+  - When VITE_AUTH_BYPASS=true, the frontend starts with a local dev user and does not require login.
+
+- apps/web/src/pages/Login.tsx
+  - Redirects away from the login page when frontend bypass is enabled.
+
+- .env.example
+  - Added documented bypass variables.
+
+- .env.local-dev
+  - Ready-to-use local env with bypass enabled.
+
+- RUN-LOCAL-BYPASS.md
+  - Step-by-step local run instructions.
+
+- package.json
+  - Added use:local-bypass, setup:bypass, and dev:bypass scripts.
+
+Important:
+- Use only for local development/testing.
+- Production bypass is disabled automatically by config when NODE_ENV=production.
+- Backend bypass user must exist in DB, so run npm run db:seed before testing.
