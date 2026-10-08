@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { api, setToken } from '../lib/api';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import type { Role, User } from '../lib/types';
@@ -34,6 +35,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const [loading, setLoading] = useState(!DEV_AUTH_BYPASS);
 
+  const syncSupabaseSession = async (session: Session | null) => {
+    if (!session?.access_token) {
+      setToken(null);
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    setToken(session.access_token);
+
+    try {
+      const data = await api<{ user: User }>('/auth/me');
+      setUser(data.user);
+    } catch (error) {
+      console.error('Supabase session user load error:', error);
+      setToken(null);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refresh = async () => {
     if (DEV_AUTH_BYPASS) {
       setToken(null);
@@ -42,14 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isSupabaseConfigured) {
-      const { data } = await supabase!.auth.getSession();
-      if (!data.session?.access_token) {
-        setToken(null);
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-      setToken(data.session.access_token);
+      const {
+        data: { session },
+        error
+      } = await supabase!.auth.getSession();
+
+      console.log('SESSION:', session);
+      if (error) console.error('Supabase session read error:', error);
+      await syncSupabaseSession(session);
+      return;
     }
 
     try {
@@ -67,21 +91,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh();
     if (!isSupabaseConfigured || DEV_AUTH_BYPASS) return;
 
-    const { data } = supabase!.auth.onAuthStateChange((_event, session) => {
-      if (session?.access_token) {
-        setToken(session.access_token);
-        api<{ user: User }>('/auth/me')
-          .then((data) => setUser(data.user))
-          .catch(() => {
-            setToken(null);
-            setUser(null);
-          })
-          .finally(() => setLoading(false));
-      } else {
-        setToken(null);
-        setUser(null);
-        setLoading(false);
-      }
+    const { data } = supabase!.auth.onAuthStateChange((event, session) => {
+      console.log('AUTH EVENT:', event, session);
+      void syncSupabaseSession(session);
     });
 
     return () => data.subscription.unsubscribe();
@@ -113,7 +125,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         provider: 'google',
         options: { redirectTo: window.location.origin }
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Google login error:', error);
+        throw new Error(error.message);
+      }
     },
     bypassLogin() {
       if (!DEV_AUTH_BYPASS) return;
