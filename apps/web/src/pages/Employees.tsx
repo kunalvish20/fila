@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, pageItems } from '../lib/api';
 import type { PageResult, User } from '../lib/types';
 import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/ui';
@@ -12,7 +12,7 @@ export function Employees() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: 'Admin@12345', role: 'EMPLOYEE', employeeCode: '', department: '', phone: '' });
   const toast = useToast();
-  async function load() { const data = await api<PageResult<User>>('/users?limit=100'); setRows(data.items); }
+  async function load() { try { const data = await api<PageResult<User>>('/users?limit=100'); setRows(pageItems<User>(data)); } catch (err: any) { setRows([]); toast.push(err.message || 'Failed to load users', 'error'); } }
   useEffect(() => { load(); }, []);
   async function submit(e: FormEvent) { e.preventDefault(); try { await api('/users', { method: 'POST', body: JSON.stringify(form) }); toast.push('User created', 'success'); setOpen(false); await load(); } catch (err: any) { toast.push(err.message || 'Failed to create user', 'error'); } }
   async function toggle(u: User) { try { await api(`/users/${u.id}`, { method: 'PATCH', body: JSON.stringify({ active: !u.active }) }); await load(); } catch (err: any) { toast.push(err.message || 'Failed to update user', 'error'); } }

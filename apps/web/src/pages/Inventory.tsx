@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { api, qs } from '../lib/api';
+import { api, pageItems, qs } from '../lib/api';
 import type { Filament, PageResult } from '../lib/types';
 import { EmptyState, Kg, Money, StatusBadge } from '../components/ui';
 import { Modal } from '../components/Modal';
@@ -17,8 +17,13 @@ export function Inventory() {
   const toast = useToast();
 
   async function load() {
-    const data = await api<PageResult<Filament>>(`/filaments${qs({ search, status, limit: 50 })}`);
-    setRows(data.items);
+    try {
+      const data = await api<PageResult<Filament>>(`/filaments${qs({ search, status, limit: 50 })}`);
+      setRows(pageItems<Filament>(data));
+    } catch (err: any) {
+      setRows([]);
+      toast.push(err.message || 'Failed to load filament inventory', 'error');
+    }
   }
   useEffect(() => { load(); }, []);
 

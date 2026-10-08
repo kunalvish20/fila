@@ -46,28 +46,42 @@ const localDashboardData = {
   balances: []
 };
 
+function normalizeDashboardData(value: any) {
+  const data = value && typeof value === 'object' ? value : {};
+  return {
+    cards: data.cards && typeof data.cards === 'object' ? data.cards : {},
+    monthlyUsage: Array.isArray(data.monthlyUsage) ? data.monthlyUsage : [],
+    materialStock: Array.isArray(data.materialStock) ? data.materialStock : [],
+    lowStockItems: Array.isArray(data.lowStockItems) ? data.lowStockItems : [],
+    employeeUsage: Array.isArray(data.employeeUsage) ? data.employeeUsage : [],
+    balances: Array.isArray(data.balances) ? data.balances : []
+  };
+}
+
 export function Dashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (DEV_AUTH_BYPASS) {
-      setData(localDashboardData);
+      setData(normalizeDashboardData(localDashboardData));
       setLoading(false);
       return;
     }
 
     api('/dashboard/stats')
-      .then(setData)
+      .then((payload) => setData(normalizeDashboardData(payload)))
+      .catch(() => setData(normalizeDashboardData(null)))
       .finally(() => setLoading(false));
   }, []);
   if (loading) return <div className="panel">Loading dashboard...</div>;
   if (!data) return <div className="panel">Dashboard data is unavailable.</div>;
 
+  const role = user?.role || 'EMPLOYEE';
   const cards = data.cards || {};
   return <div className="stack">
     <section className="metric-grid">
-      {user!.role === 'EMPLOYEE' ? <>
+      {role === 'EMPLOYEE' ? <>
         <MetricCard label="Assigned filament" value={<Kg value={cards.assignedFilamentKg} />} />
         <MetricCard label="Pending requests" value={cards.pendingRequests} />
         <MetricCard label="Consumed" value={<Kg value={cards.consumedKg} />} />
@@ -89,9 +103,9 @@ export function Dashboard() {
           <AreaChart data={data.monthlyUsage}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip /><Area type="monotone" dataKey="consumedKg" stroke="currentColor" fill="currentColor" fillOpacity={0.14} /></AreaChart>
         </ResponsiveContainer>
       </section>
-      {user!.role === 'EMPLOYEE' ? <section className="panel">
+      {role === 'EMPLOYEE' ? <section className="panel">
         <div className="panel-head"><h2>My assigned balances</h2><p>Filament currently issued to you</p></div>
-        <div className="table-wrap"><table><thead><tr><th>Filament</th><th>Material</th><th>Balance</th></tr></thead><tbody>{data.balances?.map((b: any) => <tr key={b.id}><td>{b.filament.filamentId}</td><td>{b.filament.material} / {b.filament.color}</td><td><Kg value={b.quantityKg} /></td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table><thead><tr><th>Filament</th><th>Material</th><th>Balance</th></tr></thead><tbody>{data.balances.map((b: any) => <tr key={b.id}><td>{b.filament?.filamentId || '-'}</td><td>{b.filament?.material || '-'} / {b.filament?.color || '-'}</td><td><Kg value={b.quantityKg} /></td></tr>)}</tbody></table></div>
       </section> : <section className="panel chart-panel">
         <div className="panel-head"><h2>Material stock value</h2><p>Warehouse balance by material</p></div>
         <ResponsiveContainer width="100%" height={260}>
@@ -100,14 +114,14 @@ export function Dashboard() {
       </section>}
     </div>
 
-    {user!.role !== 'EMPLOYEE' && <div className="grid-two">
+    {role !== 'EMPLOYEE' && <div className="grid-two">
       <section className="panel">
         <div className="panel-head"><h2>Low stock watchlist</h2><p>Items needing purchase planning</p></div>
-        <div className="table-wrap"><table><thead><tr><th>ID</th><th>Material</th><th>Stock</th><th>Status</th></tr></thead><tbody>{data.lowStockItems?.map((f: any) => <tr key={f.id}><td>{f.filamentId}</td><td>{f.material} / {f.color}</td><td><Kg value={f.currentQuantityKg} /></td><td><StatusBadge status={f.status} /></td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table><thead><tr><th>ID</th><th>Material</th><th>Stock</th><th>Status</th></tr></thead><tbody>{data.lowStockItems.map((f: any) => <tr key={f.id}><td>{f.filamentId}</td><td>{f.material} / {f.color}</td><td><Kg value={f.currentQuantityKg} /></td><td><StatusBadge status={f.status} /></td></tr>)}</tbody></table></div>
       </section>
       <section className="panel">
         <div className="panel-head"><h2>Employee-wise usage</h2><p>Top consumers by kg</p></div>
-        <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Consumed</th></tr></thead><tbody>{data.employeeUsage?.map((row: any) => <tr key={row.employeeId}><td>{row.name}</td><td><Kg value={row.consumedKg} /></td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Consumed</th></tr></thead><tbody>{data.employeeUsage.map((row: any) => <tr key={row.employeeId}><td>{row.name}</td><td><Kg value={row.consumedKg} /></td></tr>)}</tbody></table></div>
       </section>
     </div>}
   </div>;

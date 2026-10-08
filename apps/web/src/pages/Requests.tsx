@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { api, qs } from '../lib/api';
+import { api, pageItems, qs } from '../lib/api';
 import type { Filament, FilamentRequest, PageResult, User } from '../lib/types';
 import { useAuth } from '../context/AuthContext';
 import { Kg, StatusBadge } from '../components/ui';
@@ -20,12 +20,25 @@ export function Requests() {
   const toast = useToast();
 
   async function load() {
-    const data = await api<PageResult<FilamentRequest>>(`/requests${qs({ status, limit: 100 })}`); setRows(data.items);
+    try {
+      const data = await api<PageResult<FilamentRequest>>(`/requests${qs({ status, limit: 100 })}`);
+      setRows(pageItems<FilamentRequest>(data));
+    } catch (err: any) {
+      setRows([]);
+      toast.push(err.message || 'Failed to load requests', 'error');
+    }
   }
   async function loadSupport() {
     if (user!.role !== 'EMPLOYEE') {
-      const [users, fils] = await Promise.all([api<PageResult<User>>('/users?role=EMPLOYEE&limit=100'), api<PageResult<Filament>>('/filaments?limit=100')]);
-      setEmployees(users.items); setFilaments(fils.items); setForm((f) => ({ ...f, employeeId: users.items[0]?.id || '', filamentId: fils.items[0]?.id || '' }));
+      try {
+        const [users, fils] = await Promise.all([api<PageResult<User>>('/users?role=EMPLOYEE&limit=100'), api<PageResult<Filament>>('/filaments?limit=100')]);
+        const userItems = pageItems<User>(users);
+        const filamentItems = pageItems<Filament>(fils);
+        setEmployees(userItems); setFilaments(filamentItems); setForm((f) => ({ ...f, employeeId: userItems[0]?.id || '', filamentId: filamentItems[0]?.id || '' }));
+      } catch (err: any) {
+        setEmployees([]); setFilaments([]);
+        toast.push(err.message || 'Failed to load request form data', 'error');
+      }
     }
   }
   useEffect(() => { load(); loadSupport(); }, []);

@@ -1,3 +1,5 @@
+import type { PageResult } from './types';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 export class ApiClientError extends Error {
@@ -42,3 +44,15 @@ export const qs = (params: Record<string, string | number | boolean | undefined 
   const text = search.toString();
   return text ? `?${text}` : '';
 };
+
+export function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+export function pageItems<T>(value: PageResult<T> | T[] | unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object' && Array.isArray((value as { items?: unknown }).items)) {
+    return (value as PageResult<T>).items;
+  }
+  return [];
+}

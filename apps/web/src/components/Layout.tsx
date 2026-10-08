@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bell, Boxes, ClipboardList, Gauge, History, LogOut, Settings, Users, BarChart3, PencilRuler } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ToastHost } from './Toast';
+import { ErrorBoundary } from './ErrorBoundary';
 
 const links = [
   { to: '/', label: 'Dashboard', icon: Gauge, roles: ['ADMIN', 'MANAGER', 'EMPLOYEE'] },
@@ -45,7 +46,9 @@ export function Layout() {
           </div>
           <div className="user-pill"><span>{user!.role}</span><strong>{user!.name}</strong></div>
         </header>
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <ToastHost />
     </div>
