@@ -24,7 +24,7 @@ interface AuthContextValue {
   loginWithGoogle: () => Promise<void>;
   bypassLogin: () => void;
   logout: () => void;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(null);
       setUser(null);
       setLoading(false);
-      return;
+      return null;
     }
 
     setToken(session.access_token);
@@ -48,10 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await api<{ user: User }>('/auth/me');
       setUser(data.user);
+      return data.user;
     } catch (error) {
       console.error('Supabase session user load error:', error);
       setToken(null);
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -61,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (DEV_AUTH_BYPASS) {
       setToken(null);
       setLoading(false);
-      return;
+      return DEV_AUTH_USER;
     }
 
     if (isSupabaseConfigured) {
@@ -72,16 +74,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log('SESSION:', session);
       if (error) console.error('Supabase session read error:', error);
-      await syncSupabaseSession(session);
-      return;
+      return syncSupabaseSession(session);
     }
 
     try {
       const data = await api<{ user: User }>('/auth/me');
       setUser(data.user);
+      return data.user;
     } catch {
       setToken(null);
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -123,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isSupabaseConfigured) throw new Error('Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
       const { error } = await supabase!.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin }
+        options: { redirectTo: `${window.location.origin}/auth/callback` }
       });
       if (error) {
         console.error('Google login error:', error);
